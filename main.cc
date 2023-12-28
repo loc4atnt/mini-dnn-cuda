@@ -134,19 +134,17 @@ int main(int argc, char *argv[]) {
       storeParametersToFile("../parameters/ep_"+std::to_string(epoch+1)+"_"+std::to_string(acc)+"_fc5.txt", fc5->get_parameters());
     }
   } else {
-    std::cout << "Using device: " << usingDevice << std::endl;
-
-    GpuTimer timer;
-    timer.Start();
+    std::cout << "Using device: " << (usingDevice ? "true" : "false") << std::endl;
 
     // Test (Run forward)
+    GpuTimer timer;
+    timer.Start();
     dnn.forward(dataset.test_data);
+    timer.Stop();
     float acc = compute_accuracy(dnn.output(), dataset.test_labels);
+    float ts = timer.Elapsed();
     std::cout << std::endl;
     std::cout << "Test acc: " << acc << std::endl;
-
-    timer.Stop();
-    float ts = timer.Elapsed();
     std::cout << "Time: " << ts << " ms" << std::endl;
   }
 

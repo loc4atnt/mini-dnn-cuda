@@ -3,7 +3,11 @@
 
 #include <vector>
 #include "../layer.h"
+#include "../device/Operator.h"
 #include "../operator/Operator.h"
+
+// #define CONV_CUDA_V1
+#define CONV_CUDA_V2
 
 class Conv: public Layer {
  private:

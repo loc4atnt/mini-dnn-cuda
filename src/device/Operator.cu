@@ -132,3 +132,155 @@ void dev_matrixRowwiseAddVec(float *des, float *vec, int n, int m) {
   CHECK(cudaFree(d_des));
   CHECK(cudaFree(d_vec));
 }
+
+//////////////////////////////////////////////////////////////////////// Convolution using Cuda ///////////////////////////////////////
+
+// input size: (height_in * width_in * channel_in)
+// data size: (hw_out * hw_kernel * channel_in)
+__global__ void im2col(float* input, float* data, int height_in, int width_in, int channel_in, int height_kernel, int width_kernel, 
+			int height_out, int width_out, int channel_out, int stride)
+{	
+	int i = blockIdx.y * blockDim.y + threadIdx.y;   // row: 0 - hw_out
+	int j = blockIdx.x * blockDim.x + threadIdx.x;   // col: 0 - channel_out
+	
+	int hw_in = height_in * width_in;
+	int hw_kernel = height_kernel * width_kernel;
+	int hw_out = height_out * width_out;
+	
+	if (i < hw_out && j < channel_out)
+	{
+		if (threadIdx.x == 0)
+		{
+			for (int c = 0; c < channel_in; c++) 
+			{
+				int step_h = i / width_out;
+				int step_w = i % width_out;
+				int start_idx = step_h * width_in * stride + step_w * stride;  
+				for (int k = 0; k < hw_kernel; k ++) 
+				{
+					int cur_col = start_idx % width_in + k % width_kernel; 
+					int cur_row = start_idx / width_in + k / width_kernel;
+					if (cur_col < 0 || cur_col >= width_in || cur_row < 0 || cur_row >= height_in) 
+					{
+						data[i * hw_kernel * channel_in + c * hw_kernel + k] = 0;
+					}
+					else 
+					{
+						int pick_idx = hw_in * c + cur_row * width_in + cur_col;
+						data[i * hw_kernel * channel_in + c * hw_kernel + k] = input[pick_idx];
+					}
+				}	
+			}
+		}
+	}
+}
+
+// data size (m, n) - (hw_out, hw_kernel * channel_in)
+// weight size (n, k) - (hw_kernel * channel_in, channel_out)
+// output size (m, k) - (hw_out, channel_out)
+// bias size (k) - (channel_out)
+
+__global__ void convolution(float* data, float* weight, float* output, float* bias, int m, int n, int k)
+{
+	int i = blockIdx.y * blockDim.y + threadIdx.y;
+    	int j = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < m && j < k)
+	{
+		float s = 0;
+		for (int p = 0; p < n; p++)
+		{
+			s += data[i * n + p] * weight[p * k + j];
+		}
+		output[i * k + j] = s + bias[j];
+	        // output[i * k + j] = s;
+	}
+}
+
+__global__ void convolution_kernel2(float* data, float* weight, float* output, float* bias, int m, int n, int k)
+{
+	__shared__ float s_data[TILE_WIDTH][TILE_WIDTH];    //BLOCK HEIGHT, BLOCK WIDTH
+	__shared__ float s_weight[TILE_WIDTH][TILE_WIDTH];  //BLOCK HEIGHT, BLOCK WIDTH
+	
+	int i = blockIdx.y * blockDim.y + threadIdx.y;
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+	int tx = threadIdx.x;
+	int ty = threadIdx.y;
+	float s = 0;
+	
+	for (int t = 0; t < (n - 1) / TILE_WIDTH + 1; t++)
+	{
+		if (i < m && t * TILE_WIDTH + tx < n)
+		{
+			s_data[ty][tx] = data[i * n + t * TILE_WIDTH + tx];
+		}
+		else
+		{
+			s_data[ty][tx] = 0;
+		}
+		
+		if (t * TILE_WIDTH + ty < n && j < k)
+		{
+			s_weight[ty][tx] = weight[(t * TILE_WIDTH + ty) * k + j];
+		}
+		else
+		{
+			s_weight[ty][tx] = 0;
+		}
+		__syncthreads();
+		
+		
+		for (int p = 0; p < TILE_WIDTH; p++)
+		{
+			s+= s_data[ty][p] * s_weight[p][tx];
+		}
+		__syncthreads();
+	}	
+		
+	if (i < m && j < k)
+	{
+		output[i * k + j] = s + bias[j];
+		// output[i * k + j] = s;
+	}
+}
+
+
+// Input in: (ch_in * h_in * w_in); index = ch_idx*(h_in * w_in) + h_idx*w_in + w_idx
+// Output out: (ch_out * h_out * w_out); index = ch_idx*(h_out * w_out) + h_idx*w_out + w_idx
+// Weight wei: (ch_out * ch_in * h_ker * w_ker); index = ch_out_idx*(ch_in * h_ker * w_ker) + ch_in_idx*(h_ker * w_ker) + h_ker_idx*w_ker + w_ker_idx
+// Bias bias: (ch_out); index = ch_out_idx
+void dev_convForward(float *out, float *in, float *wei, float *bias,
+                      int h_in, int w_in, int ch_in, int h_out, int w_out, int ch_out, int h_ker, int w_ker, int stride) {
+  int hw_out = h_out * w_out;
+  int hw_ker = h_ker * w_ker;
+
+  //Allocate memories
+  float *d_data, *d_output, *d_input, *d_weight, *d_bias;
+  size_t n_data = ((ch_in * hw_out) * (hw_ker)) * sizeof(float);
+  size_t n_output = (ch_out * hw_out) * sizeof(float);
+  size_t n_input = (ch_in * h_in * w_in) * sizeof(float);
+  size_t n_weight = (ch_out * ch_in * hw_ker) * sizeof(float);
+  size_t n_bias = (ch_out) * sizeof(float);
+  CHECK(cudaMalloc(&d_data, n_data));
+  CHECK(cudaMalloc(&d_output, n_output));
+  CHECK(cudaMalloc(&d_input, n_input));
+  CHECK(cudaMalloc(&d_weight, n_weight));
+  CHECK(cudaMalloc(&d_bias, n_bias));
+
+  //TODO: Copy data from in to d_input
+  CHECK(cudaMemCpy(d_input, in, n_input, cudaMemcpyHostToDevice));
+  //TODO: Copy data from weight to d_weight
+  CHECK(cudaMemcpy(d_weight, wei, n_weight, cudaMemcpyHostToDevice));
+  //TODO: Copy data from bias to d_bias
+  CHECK(cudaMemcpy(d_bias, bias, n_bias, cudaMemcpyHostToDevice));
+
+  //Grid size and Block size
+  dim3 blockSize (32, 32); //default
+  dim3 gridSize((ch_out - 1) / blockSize.x + 1,
+          (hw_out - 1) / blockSize.y + 1);
+
+  im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, h_ker, w_ker, stride);
+  convolution<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
+
+  //TODO: Copy data from d_output to out
+  CHECK(cudaMemcpy(out, d_output, n_output, cudaMemcpyDeviceToHost));
+}
