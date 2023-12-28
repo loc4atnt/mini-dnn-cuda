@@ -23,14 +23,14 @@
 #include "src/network.h"
 #include "src/optimizer.h"
 #include "src/optimizer/sgd.h"
-//
+#include "src/operator/Operator.h"
 #include "src/parameter.h"
 
 #include "src/device/Util.h"
 
 int main(int argc, char *argv[]) {
   printDeviceInfo();
-
+  
   bool isTraining = (argc > 1 && (strcmp(argv[1], "train") == 0));
   bool loadParamFromFile = (argc > 2 && (strcmp(argv[2], "param") == 0));
 
