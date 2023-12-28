@@ -267,7 +267,7 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   CHECK(cudaMalloc(&d_bias, n_bias));
 
   //TODO: Copy data from in to d_input
-  CHECK(cudaMemCpy(d_input, in, n_input, cudaMemcpyHostToDevice));
+  CHECK(cudaMemcpy(d_input, in, n_input, cudaMemcpyHostToDevice));
   //TODO: Copy data from weight to d_weight
   CHECK(cudaMemcpy(d_weight, wei, n_weight, cudaMemcpyHostToDevice));
   //TODO: Copy data from bias to d_bias
@@ -278,9 +278,16 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   dim3 gridSize((ch_out - 1) / blockSize.x + 1,
           (hw_out - 1) / blockSize.y + 1);
 
-  im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, h_ker, w_ker, stride);
+  im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
   convolution<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
 
   //TODO: Copy data from d_output to out
   CHECK(cudaMemcpy(out, d_output, n_output, cudaMemcpyDeviceToHost));
+
+  // Free data
+  CHECK(cudaFree(d_data));
+  CHECK(cudaFree(d_output));
+  CHECK(cudaFree(d_input));
+  CHECK(cudaFree(d_weight));
+  CHECK(cudaFree(d_bias));
 }
