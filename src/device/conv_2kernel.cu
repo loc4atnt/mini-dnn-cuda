@@ -1,3 +1,4 @@
+#define TILE_WIDTH 32
 
 // input size: (height_in * width_in * channel_in)
 // data size: (hw_out * hw_kernel * channel_in)
@@ -56,7 +57,7 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 		{
 			s += data[i * n + p] * weight[p * k + j];
 		}
-		output[i * k + j] = s + bias(j);
+		output[i * k + j] = s + bias[j];
 	        // output[i * k + j] = s;
 	}
 }
@@ -103,7 +104,7 @@ __global__ void convolution_kernel2(float* data, float* weight, float* output, f
 		
 	if (i < m && j < k)
 	{
-		output[i * k + j] = s + bias(j);
+		output[i * k + j] = s + bias[j];
 		// output[i * k + j] = s;
 	}
 }
