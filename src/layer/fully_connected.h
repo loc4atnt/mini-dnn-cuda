@@ -9,6 +9,7 @@ class FullyConnected : public Layer {
  private:
   const int dim_in;
   const int dim_out;
+  bool usingDevice;
 
   Matrix weight;  // weight parameter
   Vector bias;  // bias paramter
@@ -18,8 +19,8 @@ class FullyConnected : public Layer {
   void init();
 
  public:
-  FullyConnected(const int dim_in, const int dim_out) :
-                 dim_in(dim_in), dim_out(dim_out)
+  FullyConnected(const int dim_in, const int dim_out, bool usingDevice = false) :
+                 dim_in(dim_in), dim_out(dim_out), usingDevice(usingDevice)
   { init(); }
 
   void forward(const Matrix& bottom);
