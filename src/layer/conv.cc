@@ -55,42 +55,46 @@ void Conv::forward(const Matrix& bottom) {
   top.resize(topColSize, n_sample);
   data_cols.resize(n_sample);
 
-  float *tmpResult = new float[topColSize];// tmp buffer for result
+  #ifdef CONV_CUDA_V2
+  float *tmp_result = new float[topColSize];
+  #endif
 
   for (int i = 0; i < n_sample; i ++) {
-    if (!usingConv2) {
+    #ifdef CONV_CUDA_V1
+    // im2col
+    Matrix data_col;
+    im2col(bottom.col(i), data_col);
+    data_cols[i] = data_col;
+    // conv by product
+    // Matrix result = data_col * weight;  // result: (hw_out, channel_out)
+    // result.rowwise() += bias.transpose();
+    Matrix result = matrixMul(data_col, weight, usingDevice);
+    matrixRowwiseAddVec(result, bias, usingDevice);
+
+    top.col(i) = Eigen::Map<Vector>(result.data(), result.size());
+    #elif defined(CONV_CUDA_V2)
+    if (!usingDevice) {
       // im2col
       Matrix data_col;
       im2col(bottom.col(i), data_col);
       data_cols[i] = data_col;
       // conv by product
-      // Matrix result = data_col * weight;  // result: (hw_out, channel_out)
-      // result.rowwise() += bias.transpose();
-      Matrix result = matrixMul(data_col, weight, usingDevice);
-      matrixRowwiseAddVec(result, bias, usingDevice);
-
+      Matrix result = data_col * weight;  // result: (hw_out, channel_out)
+      result.rowwise() += bias.transpose();
+      //
       top.col(i) = Eigen::Map<Vector>(result.data(), result.size());
     } else {
-      if (!usingDevice) {
-        // im2col
-        Matrix data_col;
-        im2col(bottom.col(i), data_col);
-        data_cols[i] = data_col;
-        // conv by product
-        Matrix result = data_col * weight;  // result: (hw_out, channel_out)
-        result.rowwise() += bias.transpose();
-        //
-        top.col(i) = Eigen::Map<Vector>(result.data(), result.size());
-      } else {
-        Vector col = bottom.col(i);
-        dev_convForward(tmpResult, col.data(), weight.data(), bias.data(),
-                        height_in, width_in, channel_in, height_out, width_out, channel_out, height_kernel, width_kernel, stride);
-        top.col(i) = Eigen::Map<Vector>(tmpResult, topColSize);
-      }
+      Vector col = bottom.col(i);
+      dev_convForward(tmp_result, col.data(), weight.data(), bias.data(),
+                      height_in, width_in, channel_in, height_out, width_out, channel_out, height_kernel, width_kernel, stride);
+      top.col(i) = Eigen::Map<Vector>(tmp_result, topColSize);
     }
+    #endif
   }
 
-  delete[] tmpResult;
+  #ifdef CONV_CUDA_V2
+  delete[] tmp_result;
+  #endif
 }
 
 // col2im, used for grad_bottom
