@@ -172,7 +172,6 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 				}	
 			}
 		}
-		__syncthreads();
 	}
 }
 
