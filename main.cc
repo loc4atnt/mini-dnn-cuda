@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
   bool isTraining = (argc > 1 && (strcmp(argv[1], "train") == 0));
   bool loadParamFromFile = (argc > 2 && (strcmp(argv[2], "param") == 0));
   bool usingDevice = (argc > 3 && (strcmp(argv[3], "device") == 0));
+  bool conv2 = (argc > 4 && (strcmp(argv[4], "conv2") == 0));
 
   // Load Fashion MNIST dataset
   MNIST dataset("../data/mnist/");
@@ -41,9 +42,9 @@ int main(int argc, char *argv[]) {
 
   // Build Lenet5 model
   Network dnn;
-  Layer* conv1 = new Conv(1, 28, 28, 6, 5, 5, 1, 0, 0, usingDevice);
+  Layer* conv1 = new Conv(1, 28, 28, 6, 5, 5, 1, 0, 0, usingDevice, conv2);
   Layer* pool1 = new MaxPooling(6, 24, 24, 2, 2, 2);
-  Layer* conv2 = new Conv(6, 12, 12, 16, 5, 5, 1, 0, 0, usingDevice);
+  Layer* conv2 = new Conv(6, 12, 12, 16, 5, 5, 1, 0, 0, usingDevice, conv2);
   Layer* pool2 = new MaxPooling(16, 8, 8, 2, 2, 2);
   Layer* fc3 = new FullyConnected(pool2->output_dim(), 120, usingDevice);
   Layer* fc4 = new FullyConnected(120, 84, usingDevice);
