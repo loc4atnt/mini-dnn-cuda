@@ -166,7 +166,8 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 					}
 					else 
 					{
-						int pick_idx = hw_in * c + cur_row * width_in + cur_col;
+						// int pick_idx = hw_in * c + cur_row * width_in + cur_col;// row major
+						int pick_idx = hw_in * c + cur_col * height_in + cur_row;// column major
 						data[i * hw_kernel * channel_in + c * hw_kernel + k] = input[pick_idx];
 					}
 				}	
@@ -179,7 +180,6 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 // weight size (n, k) - (hw_kernel * channel_in, channel_out)
 // output size (m, k) - (hw_out, channel_out)
 // bias size (k) - (channel_out)
-
 __global__ void convolution(float* data, float* weight, float* output, float* bias, int m, int n, int k)
 {
 	int i = blockIdx.y * blockDim.y + threadIdx.y;
@@ -187,22 +187,26 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 	if (i < m && j < k)
 	{
 		float s = 0;
+    int widx;
 		for (int p = 0; p < n; p++)
 		{
-			s += data[i * n + p] * weight[p * k + j];
+      // widx = p * k + j;// row major
+      widx = j * n + p;// column major
+			s += data[i * n + p] * weight[widx];
 		}
-		output[i * k + j] = s + bias[j];
-	        // output[i * k + j] = s;
+		// output[i * k + j] = s + bias[j]; // row major
+		output[j * m + i] = s + bias[j];// column major
 	}
 }
 
+// have not tested
 __global__ void convolution_kernel2(float* data, float* weight, float* output, float* bias, int m, int n, int k)
 {
 	__shared__ float s_data[TILE_WIDTH][TILE_WIDTH];    //BLOCK HEIGHT, BLOCK WIDTH
 	__shared__ float s_weight[TILE_WIDTH][TILE_WIDTH];  //BLOCK HEIGHT, BLOCK WIDTH
 	
 	int i = blockIdx.y * blockDim.y + threadIdx.y;
-    int j = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.x * blockDim.x + threadIdx.x;
 	int tx = threadIdx.x;
 	int ty = threadIdx.y;
 	float s = 0;
