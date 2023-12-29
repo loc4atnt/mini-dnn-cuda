@@ -166,8 +166,8 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 					}
 					else 
 					{
-						int pick_idx = hw_in * c + cur_row * width_in + cur_col;// row major
-						// int pick_idx = hw_in * c + cur_col * height_in + cur_row;// column major
+						int pick_idx = hw_in * c + cur_row * width_in + cur_col;
+						// int pick_idx = hw_in * c + cur_col * height_in + cur_row;
 						data[i * hw_kernel * channel_in + c * hw_kernel + k] = input[pick_idx];
 					}
 				}	
@@ -277,17 +277,21 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   //TODO: Copy data from bias to d_bias
   CHECK(cudaMemcpy(d_bias, bias, n_bias, cudaMemcpyHostToDevice));
 
+  
+  #ifdef OP_CONV_V1
   //Grid size and Block size
   dim3 blockSize (32, 32); //default
   dim3 gridSize((ch_out - 1) / blockSize.x + 1,
           (hw_out - 1) / blockSize.y + 1);
-
   im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
   CHECK(cudaDeviceSynchronize());
   CHECK(cudaGetLastError());
   convolution<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
   CHECK(cudaDeviceSynchronize());
   CHECK(cudaGetLastError());
+  #elif defined(OP_CONV_V2)
+  
+  #endif
 
   //TODO: Copy data from d_output to out
   CHECK(cudaMemcpy(out, d_output, n_output, cudaMemcpyDeviceToHost));

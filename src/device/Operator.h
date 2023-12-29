@@ -9,6 +9,9 @@
 
 #define TILE_WIDTH 32
 
+#define OP_CONV_V1
+// #define OP_CONV_V2
+
 // index = c*n_row + r
 
 // A = (n, m)   B = (m, l)
