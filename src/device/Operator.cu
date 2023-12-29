@@ -183,7 +183,7 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 __global__ void convolution(float* data, float* weight, float* output, float* bias, int m, int n, int k)
 {
 	int i = blockIdx.y * blockDim.y + threadIdx.y;
-    	int j = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < m && j < k)
 	{
 		float s = 0;
@@ -199,7 +199,6 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 	}
 }
 
-// have not tested
 __global__ void convolution_kernel2(float* data, float* weight, float* output, float* bias, int m, int n, int k)
 {
 	__shared__ float s_data[TILE_WIDTH][TILE_WIDTH];    //BLOCK HEIGHT, BLOCK WIDTH
@@ -290,7 +289,13 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   CHECK(cudaDeviceSynchronize());
   CHECK(cudaGetLastError());
   #elif defined(OP_CONV_V2)
-  
+  //Grid size and Block size
+  dim3 blockSize (32, 32); //default
+  dim3 gridSize((ch_out - 1) / blockSize.x + 1,
+          (hw_out - 1) / blockSize.y + 1);
+  convolution_kernel2<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
+  CHECK(cudaDeviceSynchronize());
+  CHECK(cudaGetLastError());
   #endif
 
   //TODO: Copy data from d_output to out
