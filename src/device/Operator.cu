@@ -166,8 +166,8 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 					}
 					else 
 					{
-						// int pick_idx = hw_in * c + cur_row * width_in + cur_col;// row major
-						int pick_idx = hw_in * c + cur_col * height_in + cur_row;// column major
+						int pick_idx = hw_in * c + cur_row * width_in + cur_col;// row major
+						// int pick_idx = hw_in * c + cur_col * height_in + cur_row;// column major
 						data[i * hw_kernel * channel_in + c * hw_kernel + k] = input[pick_idx];
 					}
 				}	
