@@ -11,14 +11,14 @@ __global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, in
   int out_col = blockDim.x * blockIdx.x + threadIdx.x;
   float sum = 0;
   for (int i = 0; i < (m + blockDim.x - 1) / blockDim.x; ++i) {
-    int weight_idx = (i * blockDim.x + threadIdx.x) * n + out_row;
-    int in_idx = out_col * m + i * blockDim.y + threadIdx.y;
+    int A_idx = (i * blockDim.x + threadIdx.x) * n + out_row;
+    int B_idx = out_col * m + i * blockDim.y + threadIdx.y;
     if (out_row < n && i * blockDim.x + threadIdx.x < m)
-      tile1[threadIdx.y * blockDim.x + threadIdx.x] = A[weight_idx];
+      tile1[threadIdx.y * blockDim.x + threadIdx.x] = A[A_idx];
     else
       tile1[threadIdx.y * blockDim.x + threadIdx.x] = 0;
     if (i * blockDim.y + threadIdx.y < m && out_col < l)
-      tile2[threadIdx.y * blockDim.x + threadIdx.x] = B[in_idx];
+      tile2[threadIdx.y * blockDim.x + threadIdx.x] = B[B_idx];
     else
       tile2[threadIdx.y * blockDim.x + threadIdx.x] = 0;
     //waiting until all cells in SMEM are assigned
