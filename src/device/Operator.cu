@@ -189,7 +189,8 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 		float s = 0;
 		for (int p = 0; p < n; p++)
 		{
-			s += data[i * n + p] * weight[p * k + j];
+			//s += data[i * n + p] * weight[p * k + j];
+			s += data[i * n + p] * weight[j * n + p];
 		}
 		output[i * k + j] = s + bias[j];
 	        // output[i * k + j] = s;
