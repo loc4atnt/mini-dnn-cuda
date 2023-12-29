@@ -189,10 +189,10 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 		float s = 0;
 		for (int p = 0; p < n; p++)
 		{
-			s += data[i * n + p] * weight[p * k + j];
+			s += data[i * n + p] * weight[j * n + p];
 		}
-		output[i * k + j] = s + bias[j];
-	        // output[i * k + j] = s;
+		output[j * m + i] = s + bias[j];
+	        // output[j * m + i] = s;
 	}
 }
 
@@ -220,7 +220,7 @@ __global__ void convolution_kernel2(float* data, float* weight, float* output, f
 		
 		if (t * TILE_WIDTH + ty < n && j < k)
 		{
-			s_weight[ty][tx] = weight[(t * TILE_WIDTH + ty) * k + j];
+			s_weight[ty][tx] = weight[j * n + (t * TILE_WIDTH + ty)];
 		}
 		else
 		{
@@ -238,8 +238,8 @@ __global__ void convolution_kernel2(float* data, float* weight, float* output, f
 		
 	if (i < m && j < k)
 	{
-		output[i * k + j] = s + bias[j];
-		// output[i * k + j] = s;
+		output[j * m + i] = s + bias[j];
+		// output[j * m + i] = s;
 	}
 }
 
