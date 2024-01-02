@@ -96,7 +96,6 @@ void dev_matrixMul(float *res, float *A, float *B, float *bias, int n, int m, in
   CHECK(cudaFree(d_A));
   CHECK(cudaFree(d_B));
   CHECK(cudaFree(d_res));
-  CHECK(cudaFree(d_bias));
 }
 
 // des = (n, m) vec = (n)
