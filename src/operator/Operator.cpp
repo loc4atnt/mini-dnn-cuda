@@ -1,6 +1,6 @@
 #include "Operator.h"
 
-Matrix matrixMul(const Matrix &A, const Matrix &B, const Vector &bias, bool isColWise = true, bool usingDevice = false) {
+Matrix matrixMul(const Matrix &A, const Matrix &B, const Vector &bias, bool isColWise, bool usingDevice) {
   if (usingDevice) {
     Matrix result;
     result.resize(A.rows(), B.cols());
