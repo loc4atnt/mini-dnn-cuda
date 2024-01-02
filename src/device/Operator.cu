@@ -4,7 +4,7 @@
 
 // A = (n, m)   B = (m, l)
 //tiled matrix multiplication
-__global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, int m, int l) {
+__global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, float* bias, int n, int m, int l, bool isColWise = true) {
   __shared__ float tile1[BLOCK_WIDTH * BLOCK_HEIGHT];
   __shared__ float tile2[BLOCK_WIDTH * BLOCK_HEIGHT];
   int out_row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -29,8 +29,12 @@ __global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, in
     //waiting until all values in SMEM are processed
     __syncthreads();
   }
-  if (out_row < n && out_col < l)
-    res[out_col * n + out_row] = sum;
+  if (out_row < n && out_col < l) {
+    if (isColWise)
+      res[out_col * n + out_row] = sum + bias[out_row];
+    else
+      res[out_col * n + out_row] = sum + bias[out_col];
+  }
 }
 
 __global__ void matrixMul_kernel(float *res, float *A, float *B, int n, int m, int l) {
@@ -61,25 +65,29 @@ __global__ void matrixRowwiseAddVec_kernel(float* des, float* vec, int n, int m)
     des[out_col * n + out_row] += vec[out_col];
   }
 }
-void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l) {
+void dev_matrixMul(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise) {
   size_t A_size = sizeof(float) * n * m;
   size_t B_size = sizeof(float) * m * l;
   size_t res_size = sizeof(float) * n * l;
+  size_t bias_size = sizeof(float) * (isColWise ? n : l);
   //allocate dev memory
   float* d_A = nullptr;
   float* d_B = nullptr;
   float* d_res = nullptr;
+  float* d_bias = nullptr;
   CHECK(cudaMalloc(&d_A, A_size));
   CHECK(cudaMalloc(&d_B, B_size));
   CHECK(cudaMalloc(&d_res, res_size));
+  CHECK(cudaMalloc(&d_bias, bias_size));
   //data transfer from host to device
   CHECK(cudaMemcpy(d_A, A, A_size, cudaMemcpyHostToDevice));
   CHECK(cudaMemcpy(d_B, B, B_size, cudaMemcpyHostToDevice));
+  CHECK(cudaMemcpy(d_bias, bias, bias_size, cudaMemcpyHostToDevice));
   //call kernel
   //default block size: 32 x 32
   dim3 block_size(BLOCK_WIDTH, BLOCK_HEIGHT);
   dim3 grid_size((l + block_size.x - 1) / block_size.x, (n + block_size.y - 1) / block_size.y);
-  tiled_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
+  tiled_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, d_bias, n, m, l, isColWise);
   // matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
   //data transfer from device back to host
   CHECK(cudaMemcpy(res, d_res, res_size, cudaMemcpyDeviceToHost));
@@ -87,6 +95,7 @@ void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l) {
   CHECK(cudaFree(d_A));
   CHECK(cudaFree(d_B));
   CHECK(cudaFree(d_res));
+  CHECK(cudaFree(d_bias));
 }
 
 // des = (n, m) vec = (n)

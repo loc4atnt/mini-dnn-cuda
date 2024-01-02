@@ -15,7 +15,7 @@
 // index = c*n_row + r
 
 // A = (n, m)   B = (m, l)
-void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l);
+void dev_matrixMul(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise);
 
 // des = (n, m) vec = (n)
 void dev_matrixColwiseAddVec(float *des, float *vec, int n, int m);

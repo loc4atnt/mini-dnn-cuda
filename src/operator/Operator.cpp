@@ -1,10 +1,10 @@
 #include "Operator.h"
 
-Matrix matrixMul(const Matrix &A, const Matrix &B, bool usingDevice) {
+Matrix matrixMul(const Matrix &A, const Matrix &B, const Vector &bias, bool isColWise = true, bool usingDevice = false) {
   if (usingDevice) {
     Matrix result;
     result.resize(A.rows(), B.cols());
-    dev_matrixMul((float*)result.data(), (float*)A.data(), (float*)B.data(), A.rows(), A.cols(), B.cols());
+    dev_matrixMul((float*)result.data(), (float*)A.data(), (float*)B.data(), (float*)bias.data(), A.rows(), A.cols(), B.cols(), isColWise);
     return result;
   } else {
     return A * B;
