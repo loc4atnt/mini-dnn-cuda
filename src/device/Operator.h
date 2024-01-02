@@ -9,6 +9,8 @@
 
 #define TILE_WIDTH 32
 
+#define MAX_BIAS_SIZE 1024
+
 // #define OP_CONV_V1
 #define OP_CONV_V2
 
