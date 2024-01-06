@@ -6,9 +6,9 @@ __constant__ float dc_bias[MAX_BIAS_SIZE];
 
 // A = (n, m)   B = (m, l)
 //tiled matrix multiplication & constant memory for bias
-__global__ void optimized_matrixMul_kernel(float *res, float *A, float *B, int n, int m, int l, bool isColWise = true) {
-  __shared__ float tile1[BLOCK_WIDTH * BLOCK_HEIGHT];
-  __shared__ float tile2[BLOCK_WIDTH * BLOCK_HEIGHT];
+__global__ void optimized_matrixMul_kernel(float *res, const float* __restrict__ A, const float* __restrict__ B, int n, int m, int l, bool isColWise = true) {
+  __shared__ float tile1[TILE_WIDTH * TILE_WIDTH];
+  __shared__ float tile2[TILE_WIDTH * TILE_WIDTH];
   int out_row = blockDim.y * blockIdx.y + threadIdx.y;
   int out_col = blockDim.x * blockIdx.x + threadIdx.x;
   float sum = 0;
@@ -25,7 +25,9 @@ __global__ void optimized_matrixMul_kernel(float *res, float *A, float *B, int n
       tile2[threadIdx.y * blockDim.x + threadIdx.x] = 0;
     //waiting until all cells in SMEM are assigned
     __syncthreads();
-    for (int j = 0; j < blockDim.x; ++j) {
+    //loop unrolling
+    #pragma unroll
+    for (int j = 0; j < TILE_WIDTH; ++j) {
       sum += tile1[threadIdx.y * blockDim.x + j] * tile2[j * blockDim.x + threadIdx.x];
     }
     //waiting until all values in SMEM are processed
@@ -229,7 +231,7 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 	}
 }
 
-__global__ void convolution_kernel2(float* data, float* weight, float* output, int m, int n, int k)
+__global__ void convolution_kernel2(const float* __restrict__ data, const float* __restrict__ weight, float* output, int m, int n, int k)
 {
 	__shared__ float s_data[TILE_WIDTH][TILE_WIDTH];    //BLOCK HEIGHT, BLOCK WIDTH
 	__shared__ float s_weight[TILE_WIDTH][TILE_WIDTH];  //BLOCK HEIGHT, BLOCK WIDTH
@@ -260,8 +262,8 @@ __global__ void convolution_kernel2(float* data, float* weight, float* output, i
 			s_weight[ty][tx] = 0;
 		}
 		__syncthreads();
-		
-		
+		//loop unrolling
+		#pragma unroll
 		for (int p = 0; p < TILE_WIDTH; p++)
 		{
 			s+= s_data[ty][p] * s_weight[p][tx];
