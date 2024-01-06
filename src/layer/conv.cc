@@ -55,9 +55,7 @@ void Conv::forward(const Matrix& bottom) {
   top.resize(topColSize, n_sample);
   data_cols.resize(n_sample);
 
-  #ifdef CONV_CUDA_V2
   float *tmp_result = new float[topColSize];
-  #endif
 
   for (int i = 0; i < n_sample; i ++) {
     if (!usingDevice) {
@@ -78,9 +76,7 @@ void Conv::forward(const Matrix& bottom) {
     }
   }
 
-  #ifdef CONV_CUDA_V2
   delete[] tmp_result;
-  #endif
 }
 
 // col2im, used for grad_bottom
