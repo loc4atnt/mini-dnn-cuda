@@ -14,10 +14,8 @@
 // #define OP_CONV_V1
 #define OP_CONV_V2
 
-// index = c*n_row + r
-
 // A = (n, m)   B = (m, l)
-void dev_matrixMul(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise);
+void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise);
 
 // des = (n, m) vec = (n)
 void dev_matrixColwiseAddVec(float *des, float *vec, int n, int m);
@@ -30,6 +28,6 @@ void dev_matrixRowwiseAddVec(float *des, float *vec, int n, int m);
 // Weight wei: (ch_out * ch_in * h_ker * w_ker); index = ch_out_idx*(ch_in * h_ker * w_ker) + ch_in_idx*(h_ker * w_ker) + h_ker_idx*w_ker + w_ker_idx
 // Bias bias: (ch_out); index = ch_out_idx
 void dev_convForward(float *out, float *in, float *wei, float *bias,
-                      int h_in, int w_in, int ch_in, int h_out, int w_out, int ch_out, int h_ker, int w_ker, int stride);
+                      int h_in, int w_in, int ch_in, int h_out, int w_out, int ch_out, int h_ker, int w_ker, int stride, bool usingOpt);
 
 #endif
