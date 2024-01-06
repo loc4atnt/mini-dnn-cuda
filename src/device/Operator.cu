@@ -212,7 +212,7 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 // weight size (n, k) - (hw_kernel * channel_in, channel_out)
 // output size (m, k) - (hw_out, channel_out)
 // bias size (k) - (channel_out)
-__global__ void convolution(float* data, float* weight, float* output, int m, int n, int k)
+__global__ void convolution(float* data, float* weight, float* output, float* d_bias,int m, int n, int k)
 {
 	int i = blockIdx.y * blockDim.y + threadIdx.y;
   int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -227,11 +227,11 @@ __global__ void convolution(float* data, float* weight, float* output, int m, in
 			s += data[i * n + p] * weight[widx];
 		}
 		// output[i * k + j] = s + bias[j]; // row major
-		output[j * m + i] = s + dc_bias[j];// column major
+		output[j * m + i] = s + bias[j];// column major
 	}
 }
 
-__global__ void convolution_kernel2(float* data, float* weight, float* output, float* bias, int m, int n, int k)
+__global__ void convolution_kernel2(float* data, float* weight, float* output, int m, int n, int k)
 {
 	__shared__ float s_data[TILE_WIDTH][TILE_WIDTH];    //BLOCK HEIGHT, BLOCK WIDTH
 	__shared__ float s_weight[TILE_WIDTH][TILE_WIDTH];  //BLOCK HEIGHT, BLOCK WIDTH
@@ -273,7 +273,7 @@ __global__ void convolution_kernel2(float* data, float* weight, float* output, f
 		
 	if (i < m && j < k)
 	{
-		output[j * m + i] = s + bias[j];
+		output[j * m + i] = s + dc_bias[j];
 		// output[j * m + i] = s;
 	}
 }
