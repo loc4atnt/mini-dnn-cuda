@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
   } else {
     std::cout << "Using device: " << (usingDevice ? "true" : "false") << std::endl;
     if (usingDevice)
-      std::cout << "Optimized: " (usingOpt ? "yes" : "no") << std::endl;
+      std::cout << "Optimized: " << (usingOpt ? "yes" : "no") << std::endl;
 
     // Test (Run forward)
     GpuTimer timer;
