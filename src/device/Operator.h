@@ -9,13 +9,15 @@
 
 #define TILE_WIDTH 32
 
+#define MAX_BIAS_SIZE 1024
+
 // #define OP_CONV_V1
 #define OP_CONV_V2
 
 // index = c*n_row + r
 
 // A = (n, m)   B = (m, l)
-void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l);
+void dev_matrixMul(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise);
 
 // des = (n, m) vec = (n)
 void dev_matrixColwiseAddVec(float *des, float *vec, int n, int m);

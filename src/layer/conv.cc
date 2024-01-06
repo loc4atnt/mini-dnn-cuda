@@ -68,8 +68,8 @@ void Conv::forward(const Matrix& bottom) {
     // conv by product
     // Matrix result = data_col * weight;  // result: (hw_out, channel_out)
     // result.rowwise() += bias.transpose();
-    Matrix result = matrixMul(data_col, weight, usingDevice);
-    matrixRowwiseAddVec(result, bias, usingDevice);
+    Matrix result = matrixMul(data_col, weight, bias, false, usingDevice);
+    // matrixRowwiseAddVec(result, bias, usingDevice);
 
     top.col(i) = Eigen::Map<Vector>(result.data(), result.size());
     #elif defined(CONV_CUDA_V2)
