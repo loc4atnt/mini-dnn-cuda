@@ -10,6 +10,7 @@
 #define TILE_WIDTH 32
 
 #define MAX_BIAS_SIZE 1024
+#define BIAS_SIZE 16
 
 // A = (n, m)   B = (m, l)
 void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise);
