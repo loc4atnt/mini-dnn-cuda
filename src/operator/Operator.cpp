@@ -1,10 +1,10 @@
 #include "Operator.h"
 
-Matrix matrixMulAndAddBiasColwise(const Matrix &A, const Matrix &B, const Vector &bias, bool isColWise, bool usingDevice, bool usingOpt) {
+Matrix matrixMulAndAddBiasColwise(const Matrix &A, const Matrix &B, const Vector &bias, bool isColWise, bool usingDevice) {
   if (usingDevice) {
     Matrix result;
     result.resize(A.rows(), B.cols());
-    dev_matrixMulAndAddBias((float*)result.data(), (float*)A.data(), (float*)B.data(), (float*)bias.data(), A.rows(), A.cols(), B.cols(), isColWise, usingOpt);
+    dev_matrixMulAndAddBias((float*)result.data(), (float*)A.data(), (float*)B.data(), (float*)bias.data(), A.rows(), A.cols(), B.cols(), isColWise);
     return result;
   } else {
     return A * B;

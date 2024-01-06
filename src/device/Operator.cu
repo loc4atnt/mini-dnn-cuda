@@ -67,6 +67,35 @@ __global__ void matrixRowwiseAddVec_kernel(float* des, float* vec, int n, int m)
     des[out_col * n + out_row] += vec[out_col];
   }
 }
+
+void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l) {
+  size_t A_size = sizeof(float) * n * m;
+  size_t B_size = sizeof(float) * m * l;
+  size_t res_size = sizeof(float) * n * l;
+  //allocate dev memory
+  float* d_A = nullptr;
+  float* d_B = nullptr;
+  float* d_res = nullptr;
+  CHECK(cudaMalloc(&d_A, A_size));
+  CHECK(cudaMalloc(&d_B, B_size));
+  CHECK(cudaMalloc(&d_res, res_size));
+  //data transfer from host to device
+  CHECK(cudaMemcpy(d_A, A, A_size, cudaMemcpyHostToDevice));
+  CHECK(cudaMemcpy(d_B, B, B_size, cudaMemcpyHostToDevice));
+  //call kernel
+  //default block size: 32 x 32
+  dim3 block_size(BLOCK_WIDTH, BLOCK_HEIGHT);
+  dim3 grid_size((l + block_size.x - 1) / block_size.x, (n + block_size.y - 1) / block_size.y);
+  tiled_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
+  // matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
+  //data transfer from device back to host
+  CHECK(cudaMemcpy(res, d_res, res_size, cudaMemcpyDeviceToHost));
+  //free dev memory
+  CHECK(cudaFree(d_A));
+  CHECK(cudaFree(d_B));
+  CHECK(cudaFree(d_res));
+}
+
 void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise) {
   size_t A_size = sizeof(float) * n * m;
   size_t B_size = sizeof(float) * m * l;
