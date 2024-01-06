@@ -1,6 +1,6 @@
 #include "Operator.h"
 
-__constant__ float c_bias[MAX_BIAS_SIZE];
+__constant__ float dc_bias[MAX_BIAS_SIZE];
 
 // index = c*n_row + r
 
@@ -33,9 +33,9 @@ __global__ void optimized_matrixMul_kernel(float *res, float *A, float *B, int n
   }
   if (out_row < n && out_col < l) {
     if (isColWise)
-      res[out_col * n + out_row] = sum + c_bias[out_row];
+      res[out_col * n + out_row] = sum + dc_bias[out_row];
     else
-      res[out_col * n + out_row] = sum + c_bias[out_col];
+      res[out_col * n + out_row] = sum + dc_bias[out_col];
   }
 }
 
@@ -112,7 +112,7 @@ void dev_matrixMulWithBias(float *res, float *A, float *B, float *bias, int n, i
   CHECK(cudaMemcpy(d_A, A, A_size, cudaMemcpyHostToDevice));
   CHECK(cudaMemcpy(d_B, B, B_size, cudaMemcpyHostToDevice));
   //Copy bias data to constant memory
-  setConstMemData(c_bias, bias, bias_size);
+  CHECK(cudaMemcpyToSymbol(dc_bias, bias, bias_size, 0, cudaMemcpyHostToDevice));
   //call kernel
   //default block size: 32 x 32
   dim3 block_size(BLOCK_WIDTH, BLOCK_HEIGHT);
@@ -171,7 +171,6 @@ void dev_matrixRowwiseAddVec(float *des, float *vec, int n, int m) {
 }
 
 //////////////////////////////////////////////////////////////////////// Convolution using Cuda ///////////////////////////////////////
-__constant__ float dc_bias[BIAS_SIZE];
 
 // input size: (height_in * width_in * channel_in)
 // data size: (hw_out * hw_kernel * channel_in)

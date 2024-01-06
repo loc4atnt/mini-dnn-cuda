@@ -16,8 +16,3 @@ void printDeviceInfo()
   printf("SMEM / one SM: %lu bytes\n", devProv.sharedMemPerMultiprocessor);
   printf("****************************\n");
 }
-
-//Move host data to constant memory
-void setConstMemData(float* constant, float* data, size_t dataSize) {
-  CHECK(cudaMemcpyToSymbol(constant, data, dataSize, 0, cudaMemcpyHostToDevice));
-}
