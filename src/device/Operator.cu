@@ -6,7 +6,7 @@ __constant__ float dc_bias[MAX_BIAS_SIZE];
 
 // A = (n, m)   B = (m, l)
 //tiled matrix multiplication & constant memory for bias
-__global__ void optimized_matrixMul_kernel(float *res, float *A, float *B, int n, int m, int l, bool isColWise = true) {
+__global__ void optimized_matrixMul_kernel(float *res, const float* __restrict__ A, const float* __restrict__ B, int n, int m, int l, bool isColWise = true) {
   __shared__ float tile1[TILE_WIDTH * TILE_WIDTH];
   __shared__ float tile2[TILE_WIDTH * TILE_WIDTH];
   int out_row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -231,7 +231,7 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 	}
 }
 
-__global__ void convolution_kernel2(float* data, float* weight, float* output, int m, int n, int k)
+__global__ void convolution_kernel2(const float* __restrict__ data, const float* __restrict__ weight, float* output, int m, int n, int k)
 {
 	__shared__ float s_data[TILE_WIDTH][TILE_WIDTH];    //BLOCK HEIGHT, BLOCK WIDTH
 	__shared__ float s_weight[TILE_WIDTH][TILE_WIDTH];  //BLOCK HEIGHT, BLOCK WIDTH
