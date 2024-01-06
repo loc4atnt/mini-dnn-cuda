@@ -212,7 +212,7 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 // weight size (n, k) - (hw_kernel * channel_in, channel_out)
 // output size (m, k) - (hw_out, channel_out)
 // bias size (k) - (channel_out)
-__global__ void convolution(float* data, float* weight, float* output, float* d_bias,int m, int n, int k)
+__global__ void convolution(float* data, float* weight, float* output, float* bias, int m, int n, int k)
 {
 	int i = blockIdx.y * blockDim.y + threadIdx.y;
   int j = blockIdx.x * blockDim.x + threadIdx.x;
