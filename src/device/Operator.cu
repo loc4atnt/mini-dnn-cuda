@@ -172,6 +172,7 @@ void dev_matrixRowwiseAddVec(float *des, float *vec, int n, int m) {
 }
 
 //////////////////////////////////////////////////////////////////////// Convolution using Cuda ///////////////////////////////////////
+__constant__ float dc_bias[BIAS_SIZE];
 
 // input size: (height_in * width_in * channel_in)
 // data size: (hw_out * hw_kernel * channel_in)
@@ -211,7 +212,7 @@ __global__ void im2col(float* input, float* data, int height_in, int width_in, i
 // weight size (n, k) - (hw_kernel * channel_in, channel_out)
 // output size (m, k) - (hw_out, channel_out)
 // bias size (k) - (channel_out)
-__global__ void convolution(float* data, float* weight, float* output, float* bias, int m, int n, int k)
+__global__ void convolution(float* data, float* weight, float* output, int m, int n, int k)
 {
 	int i = blockIdx.y * blockDim.y + threadIdx.y;
   int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -226,7 +227,7 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 			s += data[i * n + p] * weight[widx];
 		}
 		// output[i * k + j] = s + bias[j]; // row major
-		output[j * m + i] = s + bias[j];// column major
+		output[j * m + i] = s + dc_bias[j];// column major
 	}
 }
 
@@ -298,15 +299,20 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   CHECK(cudaMalloc(&d_output, n_output));
   CHECK(cudaMalloc(&d_input, n_input));
   CHECK(cudaMalloc(&d_weight, n_weight));
-  CHECK(cudaMalloc(&d_bias, n_bias));
+  if (!usingOpt) {
+    CHECK(cudaMalloc(&d_bias, n_bias));
+  }
 
   //TODO: Copy data from in to d_input
   CHECK(cudaMemcpy(d_input, in, n_input, cudaMemcpyHostToDevice));
   //TODO: Copy data from weight to d_weight
   CHECK(cudaMemcpy(d_weight, wei, n_weight, cudaMemcpyHostToDevice));
   //TODO: Copy data from bias to d_bias
-  CHECK(cudaMemcpy(d_bias, bias, n_bias, cudaMemcpyHostToDevice));
-
+  if (!usingOpt) {
+    CHECK(cudaMemcpy(d_bias, bias, n_bias, cudaMemcpyHostToDevice));
+  } else {
+    CHECK(cudaMemcpyToSymbol(dc_bias, bias, n_bias));
+  }
   
   if (!usingOpt) {
     //Grid size and Block size
@@ -327,7 +333,7 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
     im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
     CHECK(cudaDeviceSynchronize());
     CHECK(cudaGetLastError());
-    convolution_kernel2<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
+    convolution_kernel2<<<gridSize, blockSize>>>(d_data, d_weight, d_output, hw_out, hw_ker * ch_in, ch_out);
     CHECK(cudaDeviceSynchronize());
     CHECK(cudaGetLastError());
   }
@@ -340,5 +346,7 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   CHECK(cudaFree(d_output));
   CHECK(cudaFree(d_input));
   CHECK(cudaFree(d_weight));
-  CHECK(cudaFree(d_bias));
+  if (!usingOpt) {
+    CHECK(cudaFree(d_bias));
+  }
 }
