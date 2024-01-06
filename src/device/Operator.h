@@ -11,9 +11,6 @@
 
 #define MAX_BIAS_SIZE 1024
 
-// #define OP_CONV_V1
-#define OP_CONV_V2
-
 // A = (n, m)   B = (m, l)
 void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise);
 

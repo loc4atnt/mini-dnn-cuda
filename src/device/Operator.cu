@@ -315,29 +315,29 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   CHECK(cudaMemcpy(d_bias, bias, n_bias, cudaMemcpyHostToDevice));
 
   
-  #ifdef OP_CONV_V1
-  //Grid size and Block size
-  dim3 blockSize (32, 32); //default
-  dim3 gridSize((ch_out - 1) / blockSize.x + 1,
-          (hw_out - 1) / blockSize.y + 1);
-  im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
-  CHECK(cudaDeviceSynchronize());
-  CHECK(cudaGetLastError());
-  convolution<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
-  CHECK(cudaDeviceSynchronize());
-  CHECK(cudaGetLastError());
-  #elif defined(OP_CONV_V2)
-  //Grid size and Block size
-  dim3 blockSize (32, 32); //default
-  dim3 gridSize((ch_out - 1) / blockSize.x + 1,
-          (hw_out - 1) / blockSize.y + 1);
-  im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
-  CHECK(cudaDeviceSynchronize());
-  CHECK(cudaGetLastError());
-  convolution_kernel2<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
-  CHECK(cudaDeviceSynchronize());
-  CHECK(cudaGetLastError());
-  #endif
+  if (!usingOpt) {
+    //Grid size and Block size
+    dim3 blockSize (32, 32); //default
+    dim3 gridSize((ch_out - 1) / blockSize.x + 1,
+            (hw_out - 1) / blockSize.y + 1);
+    im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
+    CHECK(cudaDeviceSynchronize());
+    CHECK(cudaGetLastError());
+    convolution<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
+    CHECK(cudaDeviceSynchronize());
+    CHECK(cudaGetLastError());
+  } else {
+    //Grid size and Block size
+    dim3 blockSize (32, 32); //default
+    dim3 gridSize((ch_out - 1) / blockSize.x + 1,
+            (hw_out - 1) / blockSize.y + 1);
+    im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
+    CHECK(cudaDeviceSynchronize());
+    CHECK(cudaGetLastError());
+    convolution_kernel2<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
+    CHECK(cudaDeviceSynchronize());
+    CHECK(cudaGetLastError());
+  }
 
   //TODO: Copy data from d_output to out
   CHECK(cudaMemcpy(out, d_output, n_output, cudaMemcpyDeviceToHost));

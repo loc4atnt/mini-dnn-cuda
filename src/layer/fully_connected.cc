@@ -14,10 +14,17 @@ void FullyConnected::forward(const Matrix& bottom) {
   const int n_sample = bottom.cols();
   top.resize(dim_out, n_sample);
 
-  // top = weight.transpose() * bottom;
-  // top.colwise() += bias;
-
-  top = matrixMulAndAddBiasColwise(weight.transpose(), bottom, bias, true, this->usingDevice, this->usingOpt);
+  if (usingDevice) {
+    if (usingOpt) {
+      top = matrixMulAndAddBiasColwise(weight.transpose(), bottom, bias, true, this->usingDevice);
+    } else {
+      top = matrixMul(weight.transpose(), bottom, bias, true, this->usingDevice);
+      matrixColwiseAddVec(top, bias, this->usingDevice);
+    }
+  } else {
+    top = weight.transpose() * bottom;
+    top.colwise() += bias;
+  }
 }
 
 void FullyConnected::backward(const Matrix& bottom, const Matrix& grad_top) {
