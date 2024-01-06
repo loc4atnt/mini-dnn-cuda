@@ -18,7 +18,7 @@ void FullyConnected::forward(const Matrix& bottom) {
     if (usingOpt) {
       top = matrixMulAndAddBiasColwise(weight.transpose(), bottom, bias, true, this->usingDevice);
     } else {
-      top = matrixMul(weight.transpose(), bottom, bias, true, this->usingDevice);
+      top = matrixMul(weight.transpose(), bottom, this->usingDevice);
       matrixColwiseAddVec(top, bias, this->usingDevice);
     }
   } else {
