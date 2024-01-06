@@ -55,5 +55,7 @@ struct GpuTimer
 };
 
 void printDeviceInfo();
+//Move host data to constant memory
+void setConstMemData(float* constant, float* data, size_t dataSize);
 
 #endif
