@@ -5,9 +5,9 @@
 #include "../utils.h"
 #include "../device/Operator.h"
 
-Matrix matrixMulAndAddBiasColwise(const Matrix &A, const Matrix &B, const Vector &bias, bool isColWise = true, bool usingDevice=false);
-Matrix matrixMul(const Matrix &A, const Matrix &B, bool usingDevice=false);
-void matrixColwiseAddVec(Matrix &des, const Vector &vec, bool usingDevice=false);
-void matrixRowwiseAddVec(Matrix &des, const Vector &vec, bool usingDevice=false);
+Matrix optimizedMatrixMul(const Matrix &A, const Matrix &B, const Vector &bias, bool isColWise = true);
+Matrix matrixMul(const Matrix &A, const Matrix &B);
+void matrixColwiseAddVec(Matrix &des, const Vector &vec);
+void matrixRowwiseAddVec(Matrix &des, const Vector &vec);
 
 #endif

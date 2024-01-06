@@ -1,12 +1,12 @@
 #include "Operator.h"
 
-__constant__ float d_bias[MAX_BIAS_SIZE];
+__constant__ float dc_bias[MAX_BIAS_SIZE];
 
 // index = c*n_row + r
 
 // A = (n, m)   B = (m, l)
-//tiled matrix multiplication
-__global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, int m, int l, bool isColWise = true) {
+//tiled matrix multiplication & constant memory for bias
+__global__ void optimized_matrixMul_kernel(float *res, float *A, float *B, int n, int m, int l, bool isColWise = true) {
   __shared__ float tile1[BLOCK_WIDTH * BLOCK_HEIGHT];
   __shared__ float tile2[BLOCK_WIDTH * BLOCK_HEIGHT];
   int out_row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -33,9 +33,9 @@ __global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, in
   }
   if (out_row < n && out_col < l) {
     if (isColWise)
-      res[out_col * n + out_row] = sum + d_bias[out_row];
+      res[out_col * n + out_row] = sum + dc_bias[out_row];
     else
-      res[out_col * n + out_row] = sum + d_bias[out_col];
+      res[out_col * n + out_row] = sum + dc_bias[out_col];
   }
 }
 
@@ -86,8 +86,7 @@ void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l) {
   //default block size: 32 x 32
   dim3 block_size(BLOCK_WIDTH, BLOCK_HEIGHT);
   dim3 grid_size((l + block_size.x - 1) / block_size.x, (n + block_size.y - 1) / block_size.y);
-  tiled_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
-  // matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
+  matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
   //data transfer from device back to host
   CHECK(cudaMemcpy(res, d_res, res_size, cudaMemcpyDeviceToHost));
   //free dev memory
@@ -96,7 +95,8 @@ void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l) {
   CHECK(cudaFree(d_res));
 }
 
-void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise) {
+//optimized version
+void dev_matrixMulWithBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise) {
   size_t A_size = sizeof(float) * n * m;
   size_t B_size = sizeof(float) * m * l;
   size_t res_size = sizeof(float) * n * l;
@@ -112,13 +112,12 @@ void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n,
   CHECK(cudaMemcpy(d_A, A, A_size, cudaMemcpyHostToDevice));
   CHECK(cudaMemcpy(d_B, B, B_size, cudaMemcpyHostToDevice));
   //Copy bias data to constant memory
-  CHECK(cudaMemcpyToSymbol(d_bias, bias, bias_size, 0, cudaMemcpyHostToDevice));
+  CHECK(cudaMemcpyToSymbol(dc_bias, bias, bias_size, 0, cudaMemcpyHostToDevice));
   //call kernel
   //default block size: 32 x 32
   dim3 block_size(BLOCK_WIDTH, BLOCK_HEIGHT);
   dim3 grid_size((l + block_size.x - 1) / block_size.x, (n + block_size.y - 1) / block_size.y);
-  tiled_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l, isColWise);
-  // matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
+  optimized_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l, isColWise);
   //data transfer from device back to host
   CHECK(cudaMemcpy(res, d_res, res_size, cudaMemcpyDeviceToHost));
   //free dev memory
@@ -172,7 +171,6 @@ void dev_matrixRowwiseAddVec(float *des, float *vec, int n, int m) {
 }
 
 //////////////////////////////////////////////////////////////////////// Convolution using Cuda ///////////////////////////////////////
-__constant__ float dc_bias[BIAS_SIZE];
 
 // input size: (height_in * width_in * channel_in)
 // data size: (hw_out * hw_kernel * channel_in)
