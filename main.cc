@@ -135,7 +135,9 @@ int main(int argc, char *argv[]) {
       storeParametersToFile("../parameters/ep_"+std::to_string(epoch+1)+"_"+std::to_string(acc)+"_fc5.txt", fc5->get_parameters());
     }
   } else {
-    std::cout << "Using device: " << (usingDevice, usingOpt ? "true" : "false") << std::endl;
+    std::cout << std::endl;
+    std::cout << "Using device: " << (usingDevice ? "true" : "false") << std::endl;
+    std::cout << "Using optimization: " << (usingOpt ? "true" : "false") << std::endl;
 
     // Test (Run forward)
     GpuTimer timer;
