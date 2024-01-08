@@ -1,14 +1,14 @@
 #include "Operator.h"
 
-__constant__ float d_bias[MAX_BIAS_SIZE];
+__constant__ float dc_bias[MAX_BIAS_SIZE];
 
 // index = c*n_row + r
 
 // A = (n, m)   B = (m, l)
-//tiled matrix multiplication
-__global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, int m, int l, bool isColWise = true) {
-  __shared__ float tile1[BLOCK_WIDTH * BLOCK_HEIGHT];
-  __shared__ float tile2[BLOCK_WIDTH * BLOCK_HEIGHT];
+//tiled matrix multiplication & constant memory for bias
+__global__ void optimized_matrixMul_kernel(float *res, const float* __restrict__ A, const float* __restrict__ B, int n, int m, int l, bool isColWise = true) {
+  __shared__ float tile1[TILE_WIDTH * TILE_WIDTH];
+  __shared__ float tile2[TILE_WIDTH * TILE_WIDTH];
   int out_row = blockDim.y * blockIdx.y + threadIdx.y;
   int out_col = blockDim.x * blockIdx.x + threadIdx.x;
   float sum = 0;
@@ -25,7 +25,9 @@ __global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, in
       tile2[threadIdx.y * blockDim.x + threadIdx.x] = 0;
     //waiting until all cells in SMEM are assigned
     __syncthreads();
-    for (int j = 0; j < blockDim.x; ++j) {
+    //loop unrolling
+    #pragma unroll
+    for (int j = 0; j < TILE_WIDTH; ++j) {
       sum += tile1[threadIdx.y * blockDim.x + j] * tile2[j * blockDim.x + threadIdx.x];
     }
     //waiting until all values in SMEM are processed
@@ -33,9 +35,9 @@ __global__ void tiled_matrixMul_kernel(float *res, float *A, float *B, int n, in
   }
   if (out_row < n && out_col < l) {
     if (isColWise)
-      res[out_col * n + out_row] = sum + d_bias[out_row];
+      res[out_col * n + out_row] = sum + dc_bias[out_row];
     else
-      res[out_col * n + out_row] = sum + d_bias[out_col];
+      res[out_col * n + out_row] = sum + dc_bias[out_col];
   }
 }
 
@@ -86,8 +88,7 @@ void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l) {
   //default block size: 32 x 32
   dim3 block_size(BLOCK_WIDTH, BLOCK_HEIGHT);
   dim3 grid_size((l + block_size.x - 1) / block_size.x, (n + block_size.y - 1) / block_size.y);
-  tiled_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
-  // matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
+  matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
   //data transfer from device back to host
   CHECK(cudaMemcpy(res, d_res, res_size, cudaMemcpyDeviceToHost));
   //free dev memory
@@ -96,7 +97,8 @@ void dev_matrixMul(float *res, float *A, float *B, int n, int m, int l) {
   CHECK(cudaFree(d_res));
 }
 
-void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise) {
+//optimized version
+void dev_matrixMulWithBias(float *res, float *A, float *B, float *bias, int n, int m, int l, bool isColWise) {
   size_t A_size = sizeof(float) * n * m;
   size_t B_size = sizeof(float) * m * l;
   size_t res_size = sizeof(float) * n * l;
@@ -112,13 +114,12 @@ void dev_matrixMulAndAddBias(float *res, float *A, float *B, float *bias, int n,
   CHECK(cudaMemcpy(d_A, A, A_size, cudaMemcpyHostToDevice));
   CHECK(cudaMemcpy(d_B, B, B_size, cudaMemcpyHostToDevice));
   //Copy bias data to constant memory
-  CHECK(cudaMemcpyToSymbol(d_bias, bias, bias_size, 0, cudaMemcpyHostToDevice));
+  CHECK(cudaMemcpyToSymbol(dc_bias, bias, bias_size, 0, cudaMemcpyHostToDevice));
   //call kernel
   //default block size: 32 x 32
   dim3 block_size(BLOCK_WIDTH, BLOCK_HEIGHT);
   dim3 grid_size((l + block_size.x - 1) / block_size.x, (n + block_size.y - 1) / block_size.y);
-  tiled_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l, isColWise);
-  // matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l);
+  optimized_matrixMul_kernel<<<grid_size, block_size>>>(d_res, d_A, d_B, n, m, l, isColWise);
   //data transfer from device back to host
   CHECK(cudaMemcpy(res, d_res, res_size, cudaMemcpyDeviceToHost));
   //free dev memory
@@ -178,37 +179,30 @@ void dev_matrixRowwiseAddVec(float *des, float *vec, int n, int m) {
 __global__ void im2col(float* input, float* data, int height_in, int width_in, int channel_in, int height_kernel, int width_kernel, 
 			int height_out, int width_out, int channel_out, int stride)
 {	
-	int i = blockIdx.y * blockDim.y + threadIdx.y;   // row: 0 - hw_out
-	int j = blockIdx.x * blockDim.x + threadIdx.x;   // col: 0 - channel_out
+	int i = blockIdx.y * blockDim.y + threadIdx.y;   
+	int j = blockIdx.x * blockDim.x + threadIdx.x;   
 	
 	int hw_in = height_in * width_in;
 	int hw_kernel = height_kernel * width_kernel;
 	int hw_out = height_out * width_out;
 	
-	if (i < hw_out && j < channel_out)
+	if (i < hw_out && j < channel_in)     // Dùng channel của out để lấy pixel cho channel_in (channel_in < channel_out)
 	{
-		if (threadIdx.x == 0)
+		int step_h = i / width_out;
+		int step_w = i % width_out;
+		int start_idx = step_h * width_in * stride + step_w * stride;  
+		for (int k = 0; k < hw_kernel; k ++) 
 		{
-			for (int c = 0; c < channel_in; c++) 
+			int cur_col = start_idx % width_in + k % width_kernel; 
+			int cur_row = start_idx / width_in + k / width_kernel;
+			if (cur_col < 0 || cur_col >= width_in || cur_row < 0 || cur_row >= height_in) 
 			{
-				int step_h = i / width_out;
-				int step_w = i % width_out;
-				int start_idx = step_h * width_in * stride + step_w * stride;  
-				for (int k = 0; k < hw_kernel; k ++) 
-				{
-					int cur_col = start_idx % width_in + k % width_kernel; 
-					int cur_row = start_idx / width_in + k / width_kernel;
-					if (cur_col < 0 || cur_col >= width_in || cur_row < 0 || cur_row >= height_in) 
-					{
-						data[i * hw_kernel * channel_in + c * hw_kernel + k] = 0;
-					}
-					else 
-					{
-						int pick_idx = hw_in * c + cur_row * width_in + cur_col;
-						// int pick_idx = hw_in * c + cur_col * height_in + cur_row;
-						data[i * hw_kernel * channel_in + c * hw_kernel + k] = input[pick_idx];
-					}
-				}	
+				data[i * hw_kernel * channel_in + j * hw_kernel + k] = 0;
+			}
+			else 
+			{
+				int pick_idx = hw_in * j + cur_row * width_in + cur_col;
+				data[i * hw_kernel * channel_in + j * hw_kernel + k] = input[pick_idx];
 			}
 		}
 	}
@@ -237,7 +231,7 @@ __global__ void convolution(float* data, float* weight, float* output, float* bi
 	}
 }
 
-__global__ void convolution_kernel2(float* data, float* weight, float* output, float* bias, int m, int n, int k)
+__global__ void convolution_kernel2(const float* __restrict__ data, const float* __restrict__ weight, float* output, int m, int n, int k)
 {
 	__shared__ float s_data[TILE_WIDTH][TILE_WIDTH];    //BLOCK HEIGHT, BLOCK WIDTH
 	__shared__ float s_weight[TILE_WIDTH][TILE_WIDTH];  //BLOCK HEIGHT, BLOCK WIDTH
@@ -268,8 +262,8 @@ __global__ void convolution_kernel2(float* data, float* weight, float* output, f
 			s_weight[ty][tx] = 0;
 		}
 		__syncthreads();
-		
-		
+		//loop unrolling
+		#pragma unroll
 		for (int p = 0; p < TILE_WIDTH; p++)
 		{
 			s+= s_data[ty][p] * s_weight[p][tx];
@@ -279,7 +273,7 @@ __global__ void convolution_kernel2(float* data, float* weight, float* output, f
 		
 	if (i < m && j < k)
 	{
-		output[j * m + i] = s + bias[j];
+		output[j * m + i] = s + dc_bias[j];
 		// output[j * m + i] = s;
 	}
 }
@@ -305,15 +299,20 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   CHECK(cudaMalloc(&d_output, n_output));
   CHECK(cudaMalloc(&d_input, n_input));
   CHECK(cudaMalloc(&d_weight, n_weight));
-  CHECK(cudaMalloc(&d_bias, n_bias));
+  if (!usingOpt) {
+    CHECK(cudaMalloc(&d_bias, n_bias));
+  }
 
   //TODO: Copy data from in to d_input
   CHECK(cudaMemcpy(d_input, in, n_input, cudaMemcpyHostToDevice));
   //TODO: Copy data from weight to d_weight
   CHECK(cudaMemcpy(d_weight, wei, n_weight, cudaMemcpyHostToDevice));
   //TODO: Copy data from bias to d_bias
-  CHECK(cudaMemcpy(d_bias, bias, n_bias, cudaMemcpyHostToDevice));
-
+  if (!usingOpt) {
+    CHECK(cudaMemcpy(d_bias, bias, n_bias, cudaMemcpyHostToDevice));
+  } else {
+    CHECK(cudaMemcpyToSymbol(dc_bias, bias, n_bias));
+  }
   
   if (!usingOpt) {
     //Grid size and Block size
@@ -334,7 +333,7 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
     im2col<<<gridSize, blockSize>>>(d_input, d_data, h_in, w_in, ch_in, h_ker, w_ker, h_out, w_out, ch_out, stride);
     CHECK(cudaDeviceSynchronize());
     CHECK(cudaGetLastError());
-    convolution_kernel2<<<gridSize, blockSize>>>(d_data, d_weight, d_output, d_bias, hw_out, hw_ker * ch_in, ch_out);
+    convolution_kernel2<<<gridSize, blockSize>>>(d_data, d_weight, d_output, hw_out, hw_ker * ch_in, ch_out);
     CHECK(cudaDeviceSynchronize());
     CHECK(cudaGetLastError());
   }
@@ -347,5 +346,7 @@ void dev_convForward(float *out, float *in, float *wei, float *bias,
   CHECK(cudaFree(d_output));
   CHECK(cudaFree(d_input));
   CHECK(cudaFree(d_weight));
-  CHECK(cudaFree(d_bias));
+  if (!usingOpt) {
+    CHECK(cudaFree(d_bias));
+  }
 }
