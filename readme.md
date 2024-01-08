@@ -1,5 +1,5 @@
-# mini-dnn-cpp
-**mini-dnn-cpp** is a C++ demo of deep neural networks. It is implemented purely in C++, whose only dependency, Eigen, is header-only. 
+# mini-dnn-cuda
+**mini-dnn-cuda** is a CUDA/C C++ demo of deep neural networks base on its implementation purely in C++ and use CUDA to improve the convolution layers also fully connected layers
 
 ## Usage
 Download and unzip [MNIST](http://yann.lecun.com/exdb/mnist/) dataset in `mini-dnn-cpp/data/mnist/`.
@@ -13,6 +13,40 @@ make
 
 Run `./demo`.
 
+Pull source code from [github](https://github.com/loc4atnt/mini-dnn-cuda.git) to your Colab
+
+```shell
+%cd /content
+rm -rf mini-dnn-cuda
+git clone https://github.com/loc4atnt/mini-dnn-cuda.git
+```
+
+Build source code
+
+```shell
+%cd /content/mini-dnn-cuda
+rm -rf build
+mkdir build
+%cd build
+cmake ..
+make
+```
+
+Run train model
+```shell
+!./main train param 
+```
+
+Run test model
+```shell
+!./main test param host
+```
+
+Run test model in device with optimal/non-optimial version
+```shell
+!./main test param device
+!./main test param device opt
+```
+
 Result: 
-simple neural network with 3 FC layers can obtain `0.97+` accuracy on MNIST testset.
-LeNet-like CNN can obtain `0.98+` accuracy on MNIST testset.
+Parallel LeNet-like CNN can obtain `0.88` accuracy on MNIST testset.
